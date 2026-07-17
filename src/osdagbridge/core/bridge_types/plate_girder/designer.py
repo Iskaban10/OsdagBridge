@@ -1514,6 +1514,7 @@ class IRC22CapacityCalculator:
             tq_des  = tq_req_1sided
             Iys_des = tq_des * H_max**3 / 3.0   # flat-plate one-sided, about face of web
             # Minimum c such that Iys_min(c) ≤ Iys_des (from 1.5·d³·tw³/c² ≤ Iys_des)
+            # print("d: ",d," tw: ",tw," Iys_des:",Iys_des)
             c_req = (math.sqrt(1.5 * d**3 * tw**3 / Iys_des)
                      if Iys_des > 0 else 0.0)
             # If c_req/d ≥ √2 the simpler formula 0.75·d·tw³ governs (MI check passes for any c).

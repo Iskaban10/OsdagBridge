@@ -16,9 +16,6 @@ from .dto import (
     ShearStudParamsDTO,
     GirderSegmentDTO,
 )
-from .defaults import (
-    BASIC_INPUT_DICT,
-)
 from .initial_sizing import DEFAULT_FOOTPATH_WIDTH
 from .analyser import BridgeGrillageModel
 from .analysis_results import PlateGirderAnalysisResults
@@ -466,13 +463,13 @@ class PlateGirderBridge:
             KEY_MP_GIRDER_TOP_FLANGE_THICKNESS, KEY_MP_GIRDER_BOTTOM_FLANGE_THICKNESS,
             KEY_MP_GIRDER_WEB_THICKNESS
         """
-        import math
-        from .initial_sizing import BridgeConfigurationSolver
-        from osdagbridge.core.utils.common import SAIL_APPROVED_THICKNESS_VALUES
-
         inp = self.input_dict
         if str(inp.get(KEY_DESIGN_MODE, '')).strip() != 'Optimized':
             return
+        
+        import math
+        from .initial_sizing import BridgeConfigurationSolver
+        from osdagbridge.core.utils.common import SAIL_APPROVED_THICKNESS_VALUES
 
         sail_mm = sorted(float(s) for s in SAIL_APPROVED_THICKNESS_VALUES)
 
@@ -518,7 +515,7 @@ class PlateGirderBridge:
 
         for gi in range(count):
             suffix   = f".G{gi + 1}.M1"
-            symmetry = inp.get(f"{KEY_MP_GIRDER_SYMMETRY}{suffix}")
+            symmetry = inp.get(f"{KEY_MP_GIRDER_SYMMETRY}{suffix}", "Girder Symmetric")
             props    = solver.compute_section_properties(span=span, symmetry=symmetry)
 
             for base_key, prop_key in _DIM_KEYS:
@@ -656,7 +653,7 @@ class PlateGirderBridge:
         self.output_dict["end_diaphragm_design_results"] = self.end_diaphragm_design_results
         return self.crossbracing_design_results
 
-    def design(self) -> None:
+    def customized_design(self) -> None:
         """
         Run the full analysis/design pipeline.
         Orchestrates the 14 linear stages mapping exactly to the revised architecture.
@@ -2201,7 +2198,8 @@ class PlateGirderBridge:
 
     def _run_dcr_checks(self, dataset) -> None:
         """Run structural capacity checks and push DCR percentages to the output dock."""
-        results = PlateGirderAnalysisResults(dataset=dataset, bridge=self.grillage_model)
+        edge_dist = self.input_dict[KEY_TS_DECK_OVERHANG]
+        results = PlateGirderAnalysisResults(dataset=dataset, bridge=self.grillage_model, edge_dist = edge_dist)
         _, engine, design_results = run_design_check(
             plate_girder_bridge=self,
             analysis_results=results,
@@ -4243,3 +4241,23 @@ class PlateGirderBridge:
         out[KEY_SD_WEB_TYPE] = str(
             inp.get(KEY_MP_GIRDER_WEB_TYPE) or "Thin Web with ITS"
         )
+
+
+    # Wrapper design function for customized and optimized
+    def design(self):
+        
+        if self.input_dict[KEY_DESIGN_MODE] == "Optimized":
+            
+            from .trial_optimizer import optimize_dict  
+            # In optmized case we just populate the input dictionary with optimum values 
+            # i.e the input dictionary becomes our optimal design vector
+            inp = dict(self.input_dict)
+            optimize_dict((inp))
+            self.input_dict = self._normalize_input_dict(inp)
+            
+            from .defaults import solve_extend_basic_input_dict
+            optimized_girder_count = self.input_dict[KEY_TS_NO_OF_GIRDERS]
+            solve_extend_basic_input_dict(self.input_dict, optimized_girder_count)
+
+        # return
+        self.customized_design()

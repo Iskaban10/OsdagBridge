@@ -145,7 +145,7 @@ class PlateGirderAnalysisResults:
     # ========================================================
     # INITIALIZATION
     # ========================================================
-    def __init__(self, dataset, bridge, edge_dist=0):  # storing analysis result
+    def __init__(self, dataset, bridge, edge_dist=0.0):  # storing analysis result
         self.ds = dataset
         self.bridge = bridge
         self.model = getattr(bridge, 'model', None)

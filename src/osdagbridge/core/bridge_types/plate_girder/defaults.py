@@ -836,7 +836,7 @@ def _on_no_of_girders_changed(working_input_dict: dict) -> None:
                     working_input_dict[key] = value
 
 
-def solve_extend_basic_input_dict(basic_input_dict: dict) -> None:
+def solve_extend_basic_input_dict(basic_input_dict: dict , n_girders = 4, print_result = True) -> None:
     """Parse basic inputs and solve bridge layout. Updates basic_input_dict in-place."""
     from .initial_sizing import BridgeConfigurationSolver
 
@@ -872,7 +872,10 @@ def solve_extend_basic_input_dict(basic_input_dict: dict) -> None:
         railing_width  = _railing_width_m(basic_input_dict.get(KEY_RL_WIDTH))
 
     median_width  = basic_input_dict.get(KEY_MD_WIDTH) or 0.0
-    no_of_girders = int(basic_input_dict.get(KEY_TS_NO_OF_GIRDERS) or 4)
+    if basic_input_dict.get(KEY_DESIGN_MODE) == "Optimized":
+        no_of_girders = n_girders
+    else:
+        no_of_girders = int(basic_input_dict.get(KEY_TS_NO_OF_GIRDERS) or n_girders)
 
     solver = BridgeConfigurationSolver(
         carriageway_width=float(basic_input_dict.get(KEY_CARRIAGEWAY_WIDTH)),
@@ -884,11 +887,12 @@ def solve_extend_basic_input_dict(basic_input_dict: dict) -> None:
     )
     sizing_result = solver._solve_layout(no_of_girders=no_of_girders, changed_field='girders')
 
-    print("[DEBUG] Bridge Layout Sizing Result:")
-    print(f"  overall_width = {sizing_result.overall_width} m")
-    print(f"  no_of_girders = {sizing_result.no_of_girders}")
-    print(f"  girder_spacing = {sizing_result.girder_spacing} m")
-    print(f"  deck_overhang = {sizing_result.deck_overhang} m")
+    if print_result:
+        print("[DEBUG] Bridge Layout Sizing Result:")
+        print(f"  overall_width = {sizing_result.overall_width} m")
+        print(f"  no_of_girders = {sizing_result.no_of_girders}")
+        print(f"  girder_spacing = {sizing_result.girder_spacing} m")
+        print(f"  deck_overhang = {sizing_result.deck_overhang} m")
 
     basic_input_dict.update({
         KEY_TS_NO_OF_FOOTPATHS: n_footpaths,
