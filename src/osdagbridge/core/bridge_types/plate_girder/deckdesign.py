@@ -409,7 +409,7 @@ def transverse_shear_check(VL_N_per_mm: float, fck_MPa: float, fy_rebar_MPa: flo
 
 def design_deck_slab(input_dict: dict, fck: float, fctm: float, fy: float, Es: float, Ecm: float,
                      *, design_results: dict | None = None,
-                     bf_top_mm: float = 0.0, stud_height_mm: float = 0.0, print: bool = True) -> tuple[dict, dict]:
+                     bf_top_mm: float = 0.0, stud_height_mm: float = 0.0, optimisation: bool = True) -> tuple[dict, dict]:
     """
     Design the concrete deck slab of a plate girder bridge.
 
@@ -855,7 +855,7 @@ def design_deck_slab(input_dict: dict, fck: float, fctm: float, fy: float, Es: f
         ur_composite_rebar_stress = _ur(dr.get("sigma_rebar_actual_MPa") or 0.0,
                                         dr.get("sigma_rebar_limit_MPa") or 0.0)
     
-    if not print:   # Return dcr values and status in case of optimisation scenario i.e print set to false
+    if optimisation:   # Return only dcr values and status in case of optimisation scenario
         
         dcr : dict ={}
         dcr["ur_bot_uls"] = ur_bot_uls

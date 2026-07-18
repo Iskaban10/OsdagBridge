@@ -4248,16 +4248,23 @@ class PlateGirderBridge:
         
         if self.input_dict[KEY_DESIGN_MODE] == "Optimized":
             
-            from .trial_optimizer import optimize_dict  
-            # In optmized case we just populate the input dictionary with optimum values 
-            # i.e the input dictionary becomes our optimal design vector
-            inp = dict(self.input_dict)
-            optimize_dict((inp))
-            self.input_dict = self._normalize_input_dict(inp)
+            import copy
+            original_dict_copy = copy.deepcopy(dict(self.input_dict))  # safe copy of intial input_dict
+                        
+            try:
+                from .trial_optimizer import optimize_dict  
+                # In optmized case we just populate the input dictionary with optimum values 
+                # i.e the input dictionary becomes our optimal design vector
+                
+                optimize_dict((self.input_dict))
+                self.input_dict = self._normalize_input_dict(self.input_dict)
             
-            from .defaults import solve_extend_basic_input_dict
-            optimized_girder_count = self.input_dict[KEY_TS_NO_OF_GIRDERS]
-            solve_extend_basic_input_dict(self.input_dict, optimized_girder_count)
+            except Exception as e: 
+                print(f"Something went wrong during optimisation! Error type: {type(e).__name__}")               
+                self.input_dict = original_dict_copy
 
         # return
+        self.input_dict = self._normalize_input_dict(self.input_dict)
+        from .defaults import solve_extend_basic_input_dict
+        solve_extend_basic_input_dict(self.input_dict)
         self.customized_design()

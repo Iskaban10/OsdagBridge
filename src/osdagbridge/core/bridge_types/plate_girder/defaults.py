@@ -486,7 +486,7 @@ def _extend_member_field_keys(working_input_dict: dict, girder_id: str, member_f
                 print(f"@@: Update {key+suffix} = {seed_val}")
                 working_input_dict[key + suffix] = seed_val
 
-def _on_no_of_girders_changed(working_input_dict: dict) -> None:
+def _on_no_of_girders_changed(working_input_dict: dict, optimisation: bool = False) -> None:
     """
     Regenerate all dynamic per-girder/member keys for the given girder count.
     Called by:
@@ -529,7 +529,14 @@ def _on_no_of_girders_changed(working_input_dict: dict) -> None:
     span = float(working_input_dict.get(KEY_SPAN))
     design_mode  = str(working_input_dict.get(KEY_DESIGN_MODE, 'Optimized')).strip()
     symmetry = 'Girder Symmetric' if design_mode == 'Optimized' else 'Girder Unsymmetric'
-    section_props = solver.compute_section_properties(span=span, symmetry=symmetry)
+    if optimisation:
+        depth = working_input_dict[KEY_MP_GIRDER_DEPTH] / 1e3
+        bf = working_input_dict[KEY_MP_GIRDER_TOP_FLANGE_WIDTH] / 1e3
+        tf = working_input_dict[KEY_MP_GIRDER_TOP_FLANGE_THICKNESS] / 1e3
+        tw = working_input_dict[KEY_MP_GIRDER_WEB_THICKNESS] / 1e3
+        section_props = solver.compute_section_properties(span=span, symmetry=symmetry, user_depth=depth, B_top=bf, B_bot=bf, t_f_top=tf, t_f_bot=tf, t_w=tw)
+    else:
+        section_props = solver.compute_section_properties(span=span, symmetry=symmetry)
 
     count = int(float(str(working_input_dict.get(KEY_TS_NO_OF_GIRDERS)).strip()))
 
@@ -836,7 +843,7 @@ def _on_no_of_girders_changed(working_input_dict: dict) -> None:
                     working_input_dict[key] = value
 
 
-def solve_extend_basic_input_dict(basic_input_dict: dict , n_girders = 4, print_result = True) -> None:
+def solve_extend_basic_input_dict(basic_input_dict: dict, optimisation: bool = False) -> None:
     """Parse basic inputs and solve bridge layout. Updates basic_input_dict in-place."""
     from .initial_sizing import BridgeConfigurationSolver
 
@@ -871,11 +878,8 @@ def solve_extend_basic_input_dict(basic_input_dict: dict , n_girders = 4, print_
         footpath_width = float(basic_input_dict.get(KEY_TS_FOOTPATH_WIDTH))
         railing_width  = _railing_width_m(basic_input_dict.get(KEY_RL_WIDTH))
 
-    median_width  = basic_input_dict.get(KEY_MD_WIDTH) or 0.0
-    if basic_input_dict.get(KEY_DESIGN_MODE) == "Optimized":
-        no_of_girders = n_girders
-    else:
-        no_of_girders = int(basic_input_dict.get(KEY_TS_NO_OF_GIRDERS) or n_girders)
+    median_width  = basic_input_dict.get(KEY_MD_WIDTH) or 0.0    
+    no_of_girders = int(basic_input_dict.get(KEY_TS_NO_OF_GIRDERS) or 4)
 
     solver = BridgeConfigurationSolver(
         carriageway_width=float(basic_input_dict.get(KEY_CARRIAGEWAY_WIDTH)),
@@ -887,7 +891,7 @@ def solve_extend_basic_input_dict(basic_input_dict: dict , n_girders = 4, print_
     )
     sizing_result = solver._solve_layout(no_of_girders=no_of_girders, changed_field='girders')
 
-    if print_result:
+    if not optimisation:
         print("[DEBUG] Bridge Layout Sizing Result:")
         print(f"  overall_width = {sizing_result.overall_width} m")
         print(f"  no_of_girders = {sizing_result.no_of_girders}")
@@ -905,5 +909,5 @@ def solve_extend_basic_input_dict(basic_input_dict: dict , n_girders = 4, print_
     })
 
     # Update Dynamic per-girder/member keys
-    _on_no_of_girders_changed(basic_input_dict)
+    _on_no_of_girders_changed(basic_input_dict, optimisation)
 
