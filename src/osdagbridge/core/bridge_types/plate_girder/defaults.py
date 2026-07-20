@@ -843,7 +843,7 @@ def _on_no_of_girders_changed(working_input_dict: dict, optimisation: bool = Fal
                     working_input_dict[key] = value
 
 
-def solve_extend_basic_input_dict(basic_input_dict: dict, optimisation: bool = False) -> None:
+def solve_extend_basic_input_dict(basic_input_dict: dict, optimised_dict:dict = {}, optimisation: bool = False) -> None:
     """Parse basic inputs and solve bridge layout. Updates basic_input_dict in-place."""
     from .initial_sizing import BridgeConfigurationSolver
 
@@ -866,6 +866,9 @@ def solve_extend_basic_input_dict(basic_input_dict: dict, optimisation: bool = F
     _update_design_options_defaults(basic_input_dict)
     
     _update_design_options_cont_defaults(basic_input_dict)
+    
+    if optimised_dict:
+        basic_input_dict.update(optimised_dict)
 
     if footpath_str in ('None', ''):
         n_footpaths, footpath_width, railing_width = 0, 0.0, 0.0
