@@ -4251,7 +4251,7 @@ class PlateGirderBridge:
             import copy
                         
             try:
-                from .optimiser_first import optimize_dict
+                from .optimiser import optimize_dict
                 """
                 In optmized case we just populate the input dictionary with optimum values 
                 i.e the input dictionary becomes our optimal design vector

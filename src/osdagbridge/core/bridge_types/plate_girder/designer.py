@@ -2276,7 +2276,7 @@ class DCREngine:
         self._add_check(7, "Stud Detailing", "Cl.606.6",
                          0.0 if c.stud_detailing_ok else 1.0, 1.0, "–",
                          note="d≤2tf, h≥max(4d,100), edge≥25, cover≥25")    
-
+        """
         # ── CATEGORY 6: Resistance to Fatigue ────────────────────────────────
         # Fatigue checks apply only under frequent SLS combinations (IRC 22 Cl.604.5).
         if _sls_freq and d.stress_range_MPa > 0 and c.f_fd_eff_MPa > 0:
@@ -2288,7 +2288,7 @@ class DCREngine:
             self._add_check(9, "Fatigue Shear Stress", "Cl.605",
                              d.shear_range_MPa, c.tau_fd_eff_MPa, "MPa",
                              note=f"Nsc={d.Nsc:,}")
-
+        """
         # ── CATEGORY 7: Stress Limitation (SLS) ──────────────────────────────
         # SLS stress checks apply to every service-level case (SLS / SLS_frequent / SW /
         # DL / DD / DL_LL / live_only / individual, etc.) — only ULS combinations are excluded.

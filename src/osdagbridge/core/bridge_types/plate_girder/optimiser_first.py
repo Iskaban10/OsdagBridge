@@ -208,7 +208,7 @@ class TrialPlateGirderBridge(PlateGirderBridge):
         else:
             print("Candidate design ")
             
-        print(f"Config: L: {span_length}m | W: {deck_width}m | {n} girders @ {spacing}m | Depth: {g_depth}m | Slab thickness: {slab_t}mm")
+        print(f"Config: L: {span_length}m | W: {deck_width}m | {n} girders @ {spacing}m | Depth: {g_depth}mm | Slab thickness: {slab_t}mm")
         if status != "":
             print("Design Check Status: " , status)
         print("-" * 25)
@@ -259,17 +259,7 @@ def _evaluate_candidate(args):
     return float(x[var_index]), status, self_wt
 
 
-def _kill_running_processes(executor: ProcessPoolExecutor) -> None:
-    """
-    Forcefully terminate any worker processes in `executor` that are still alive.
-    """
-    processes = getattr(executor, "_processes", None) or {}
-    for process in processes.values():
-        if process.is_alive():
-            process.terminate()
-
-
-def find_optimal_value(
+def parallel_narrow_search(
     inp: dict,
     base_arr: np.ndarray,
     var_index: int,
@@ -283,7 +273,7 @@ def find_optimal_value(
     design_number_start: int = 0,
     multiple: float = 1.0,
 ) -> tuple[float, int, float]:
-    
+
     n_workers = n_workers or min(k_points, os.cpu_count() or 4)
     design_number = design_number_start
     best_val = None  # smallest feasible value seen so far, if any
@@ -314,11 +304,8 @@ def find_optimal_value(
         results: dict[float, str] = {}
         round_best_pass = None   # smallest known PASS so far this round
         round_best_fail = None   # largest known FAIL so far this round
-        found_pass = False       # flips True the instant any candidate passes
 
-        executor = ProcessPoolExecutor(max_workers=n_workers)
-        # beginning the computations for this round
-        try:
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
             future_to_val = {executor.submit(_evaluate_candidate, t): t[1][var_index] for t in tasks}
             pending = set(future_to_val)
 
@@ -333,15 +320,11 @@ def find_optimal_value(
                         if round_best_pass is None or val < round_best_pass:
                             round_best_pass = val
                             best_self_wt = self_wt
-                        found_pass = True
                     else:
                         if round_best_fail is None or val > round_best_fail:
                             round_best_fail = val
 
-                if found_pass:  # terminate processes when a pass is obtained
-                    break
-
-                # Removing anything still queued since monotonicity already answered.
+                # Prune anything still queued that monotonicity already answered.
                 for other_fut in list(pending):
                     other_val = future_to_val[other_fut]
                     redundant = (
@@ -350,22 +333,19 @@ def find_optimal_value(
                     )
                     if redundant and other_fut.cancel():
                         pending.discard(other_fut)
-        finally:
-            if found_pass:
-                _kill_running_processes(executor)
-                executor.shutdown(wait=False, cancel_futures=True)
-            else:
-                executor.shutdown(wait=True)
 
-        if round_best_pass is not None:
-            best_val = round_best_pass if best_val is None else min(best_val, round_best_pass)
-            hi = round_best_pass
-            if round_best_fail is not None and round_best_fail < hi:
-                lo = round_best_fail
+        sorted_vals = sorted(results.keys())
+        feasible_vals = [v for v in sorted_vals if results[v] == pass_value]
+
+        if feasible_vals:
+            round_best = min(feasible_vals)
+            best_val = round_best if best_val is None else min(best_val, round_best)
+            idx = sorted_vals.index(round_best)
+            hi = round_best
+            lo = sorted_vals[idx - 1] if idx > 0 else lo
         else:
-            # Nothing passed this round hence true boundary lies above the tested range
-            sorted_vals = sorted(results.keys())
-            lo = sorted_vals[-1] if sorted_vals else lo
+            # Nothing passed this round — true boundary lies above the tested range
+            lo = sorted_vals[-1]
 
     if best_val is None:
         best_val = hi  # no feasible candidate found anywhere in [lo, hi]
@@ -418,7 +398,7 @@ def optimize_dict(inp: dict):
     
     n_min = math.ceil(deck_width * 10 / span_length)   # min number of girders to avoid shear lag effects on composite section
     n_min = max(2.0, n_min)
-    n_max = min(math.floor(min(deck_width , (deck_width * 20.0 / span_length))), math.ceil(deck_width / 5.0)) # min girder spacing to be provided IRC 24 Cl. 504.3
+    n_max = math.floor(min(deck_width , (deck_width * 20.0 / span_length))) # min girder spacing to be provided IRC 24 Cl. 504.3
     
     t_slab_min = 150
     t_slab_max = 1000
@@ -459,14 +439,14 @@ def optimize_dict(inp: dict):
         return
     
     # Number of Girders Optimization (parallel k-ary search over [n_min, n_max])
-    best_n_val, design_number, best_self_wt = find_optimal_value(
+    best_n_val, design_number, best_self_wt = parallel_narrow_search(
         inp,
         best_arr,
         var_index=0,
         lo=n_min,
         hi=n_max,
         check_slab=True,
-        k_points= int(min(8, max(2, n_max - n_min + 1))),
+        k_points=min(8, max(2, n_max - n_min + 1)),
         tol=1.0,  # n is integer-valued -> stop once interval is within 1 girder
         design_number_start=design_number,
     )
@@ -481,7 +461,7 @@ def optimize_dict(inp: dict):
     if design_status == "PASS":
 
         # Girder Depth Optimization (parallel k-ary search over [D_min, D_max])
-        best_depth_val, design_number, best_self_wt = find_optimal_value(
+        best_depth_val, design_number, best_self_wt = parallel_narrow_search(
             inp,
             best_arr,
             var_index=2,
@@ -489,13 +469,13 @@ def optimize_dict(inp: dict):
             hi=D_max,
             check_slab=False,
             k_points=12,  
-            tol=50,  
+            tol=50.0,  
             design_number_start=design_number,
-            multiple=50, 
+            multiple=50,  # girder depth can only be provided in multiples of 50mm
         )
 
         best_arr[2] = math.ceil(best_depth_val)
-        print(f"\nOPTIMAL GIRDER DEPTH ACHIEVED = {math.ceil(best_depth_val)}mm\n")  
+        print(f"\nOPTIMAL GIRDER DEPTH ACHIEVED = {math.ceil(best_depth_val)}\n")  
     
     update_dict(inp, best_arr)  # updated with optimal
     
